@@ -6,7 +6,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "workers-mcp": "^0.0.13",
+    "@modelcontextprotocol/sdk": "^1.14.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
