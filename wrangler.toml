@@ -1,4 +1,5 @@
 name = "tuchuang"
+main = "src/index.js"
 compatibility_date = "2026-04-27"
 compatibility_flags = ["nodejs_compat"]
 
