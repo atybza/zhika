@@ -1,5 +1,3 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 
 // ==================== 内嵌模板 ====================
@@ -112,7 +110,7 @@ const OFFICIAL_SPECS = {
       character_version: "版本号。如 '1.0.0'。",
       extensions: "对象，必须存在，至少 {}。depth_prompt: { prompt, depth:1-4, role:'system'|'user'|'assistant' }。"
     },
-    import_behavior: "tavo.character.import() 导入 CCv3 角色卡时，若含 character_book 会同时创建世界书；含 extensions.regex_scripts 会同时创建正则脚本。操作前弹窗确认。创建/更新/删除均弹窗确认。"
+    import_behavior: "tavo.character.import() 导入 CCv3 角色卡时，若含 character_book 会同时创建世界书；含 extensions.regex_scripts 会同时创建正则脚本。操作前弹窗确认。"
   },
   macros: {
     character: ["{{user}}", "{{char}}", "{{group}}", "{{charIfNotGroup}}", "{{groupNotMuted}}"],
@@ -379,7 +377,7 @@ function buildFullSpecPrompt() {
 `;
 }
 
-// ==================== PNG 嵌入 ====================
+// ==================== PNG 嵌入工具函数 ====================
 async function embedJsonIntoDefaultPng(jsonStr) {
   JSON.parse(jsonStr);
   const pngB64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==";
@@ -439,159 +437,320 @@ function crc32(d) {
   return (c^0xFFFFFFFF)>>>0;
 }
 
-// ==================== 工具注册 ====================
-function registerTools(server) {
-  server.tool("generate_character_card", "根据描述生成一个完整的 SillyTavern v2 角色卡 JSON（兼容 Tavo CCv3）。", {
-    character_description: z.string().describe("角色的自然语言描述，包括名字、身份、性格、风格、世界观等。")
-  }, async ({ character_description }, extra) => {
-    const env = extra.env;
-    const spec = buildFullSpecPrompt();
-    const prompt = `你是一个 SillyTavern 角色卡生成器。${spec}
+// ==================== 工具实现 ====================
+const TOOLS = {
+  generate_character_card: {
+    description: "根据描述生成一个完整的 SillyTavern v2 角色卡 JSON（兼容 Tavo CCv3）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_description: {
+          type: "string",
+          description: "角色的自然语言描述，包括名字、身份、性格、风格、世界观等。"
+        }
+      },
+      required: ["character_description"]
+    },
+    handler: async (args, env) => {
+      const { character_description } = args;
+      const spec = buildFullSpecPrompt();
+      const prompt = `你是一个 SillyTavern 角色卡生成器。${spec}
 【角色卡生成任务】输出纯 JSON 对象，无 markdown。
 JSON 结构：{"spec":"chara_card_v2","spec_version":"2.0","data":{"name":"","description":"","personality":"","scenario":"","first_mes":"","mes_example":"","creator_notes":"","system_prompt":"","post_history_instructions":"","alternate_greetings":[],"tags":[],"creator":"AI Generator","character_version":"1.0.0","extensions":{}}}
 高质量参考 (沈墨)：${TEMPLATES.character_card_v2_full?.substring(0, 3000)}
 用户描述：${character_description}`;
-    try {
-      const raw = await callAI(env, prompt, 4096, 0.8);
-      const jsonStr = extractJSON(raw);
-      let card;
-      try { card = JSON.parse(jsonStr); } catch {
-        return { content: [{ type: "text", text: `JSON 解析失败。原始输出：\n\n${raw.substring(0, 2000)}` }] };
+      try {
+        const raw = await callAI(env, prompt, 4096, 0.8);
+        const jsonStr = extractJSON(raw);
+        let card;
+        try { card = JSON.parse(jsonStr); } catch {
+          return { content: [{ type: "text", text: `JSON 解析失败。原始输出：\n\n${raw.substring(0, 2000)}` }] };
+        }
+        card.spec = card.spec || "chara_card_v2";
+        card.spec_version = card.spec_version || "2.0";
+        card.data = card.data || {};
+        card.data.extensions = card.data.extensions || {};
+        if (!Array.isArray(card.data.alternate_greetings)) card.data.alternate_greetings = [];
+        if (!Array.isArray(card.data.tags)) card.data.tags = [];
+        return { content: [{ type: "text", text: JSON.stringify(card, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `生成失败：${err.message}` }] };
       }
-      card.spec = card.spec || "chara_card_v2";
-      card.spec_version = card.spec_version || "2.0";
-      card.data = card.data || {};
-      card.data.extensions = card.data.extensions || {};
-      if (!Array.isArray(card.data.alternate_greetings)) card.data.alternate_greetings = [];
-      if (!Array.isArray(card.data.tags)) card.data.tags = [];
-      return { content: [{ type: "text", text: JSON.stringify(card, null, 2) }] };
-    } catch (err) {
-      return { content: [{ type: "text", text: `生成失败：${err.message}` }] };
     }
-  });
+  },
 
-  server.tool("generate_worldbook", "根据世界观描述生成一个 SillyTavern 世界书 JSON。", {
-    world_description: z.string().describe("世界的描述，包括规则、地点、派系、历史等。")
-  }, async ({ world_description }, extra) => {
-    const env = extra.env;
-    const spec = buildFullSpecPrompt();
-    const prompt = `你是一个 SillyTavern 世界书生成器。${spec}
+  generate_worldbook: {
+    description: "根据世界观描述生成一个 SillyTavern 世界书 JSON。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        world_description: {
+          type: "string",
+          description: "世界的描述，包括规则、地点、派系、历史等。"
+        }
+      },
+      required: ["world_description"]
+    },
+    handler: async (args, env) => {
+      const { world_description } = args;
+      const spec = buildFullSpecPrompt();
+      const prompt = `你是一个 SillyTavern 世界书生成器。${spec}
 【世界书生成任务】输出纯 JSON，结构：{"name":"世界书名","extensions":{},"entries":{"0":{...}}}
 每个条目必须包含：uid, key, keysecondary, comment, content, constant, selective, selectiveLogic, order, position, disable, excludeRecursion, preventRecursion, delayUntilRecursion, displayIndex, probability, useProbability, depth, group, groupOverride, groupWeight, scanDepth, caseSensitive, matchWholeWords, useGroupScoring, automationId, role, vectorized, sticky, cooldown, delay, matchPersonaDescription, matchCharacterDescription, matchCharacterPersonality, matchCharacterDepthPrompt, matchScenario, matchCreatorNotes, triggers, ignoreBudget。
 设计原则：拆成多个短条目；常驻规则用 constant:true；content 独立成句；中文 matchWholeWords 为 null。
 参考模板：${TEMPLATES.worldbook_advanced?.substring(0, 2000)}
 用户描述：${world_description}
 生成至少 3 个条目。`;
-    try {
-      const raw = await callAI(env, prompt, 4096, 0.7);
-      const jsonStr = extractJSON(raw);
-      let wb;
-      try { wb = JSON.parse(jsonStr); } catch {
-        return { content: [{ type: "text", text: `JSON 解析失败。原始输出：\n\n${raw.substring(0, 2000)}` }] };
+      try {
+        const raw = await callAI(env, prompt, 4096, 0.7);
+        const jsonStr = extractJSON(raw);
+        let wb;
+        try { wb = JSON.parse(jsonStr); } catch {
+          return { content: [{ type: "text", text: `JSON 解析失败。原始输出：\n\n${raw.substring(0, 2000)}` }] };
+        }
+        wb.entries = wb.entries || {};
+        wb.extensions = wb.extensions || {};
+        return { content: [{ type: "text", text: JSON.stringify(wb, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: "text", text: `生成失败：${err.message}` }] };
       }
-      wb.entries = wb.entries || {};
-      wb.extensions = wb.extensions || {};
-      return { content: [{ type: "text", text: JSON.stringify(wb, null, 2) }] };
-    } catch (err) {
-      return { content: [{ type: "text", text: `生成失败：${err.message}` }] };
     }
-  });
+  },
 
-  server.tool("get_template", "获取角色卡或世界书的参考模板。", {
-    template_name: z.enum(["character-card.v2.minimal","character-card.v2.full","worldbook.minimal","worldbook.advanced"])
-  }, async ({ template_name }) => {
-    const key = template_name.replace(/\./g,"_").replace(/-/g,"_");
-    const content = TEMPLATES[key] || "模板未找到。";
-    let fmt;
-    try { fmt = JSON.stringify(JSON.parse(content), null, 2); } catch { fmt = content; }
-    return { content: [{ type: "text", text: fmt }] };
-  });
-
-  server.tool("get_field_guide", "获取角色卡/世界书/宏/正则/预设字段的官方规范指南。", {
-    field: z.enum([
-      "description","personality","scenario","first_mes","mes_example","creator_notes",
-      "system_prompt","post_history_instructions","tags","extensions","character_book",
-      "worldbook_entry","macros","regex","preset","variables","all"
-    ])
-  }, async ({ field }) => {
-    const spec = OFFICIAL_SPECS;
-    const guide = {
-      description: `【description - 常驻 token 区】${spec.character_card_fields.all_fields.description}`,
-      personality: `【personality】${spec.character_card_fields.all_fields.personality}`,
-      scenario: `【scenario】${spec.character_card_fields.all_fields.scenario}`,
-      first_mes: `【first_mes】${spec.character_card_fields.all_fields.first_mes}`,
-      mes_example: `【mes_example】${spec.character_card_fields.all_fields.mes_example}`,
-      creator_notes: `【creator_notes】${spec.character_card_fields.all_fields.creator_notes}`,
-      system_prompt: `【system_prompt】${spec.character_card_fields.all_fields.system_prompt}`,
-      post_history_instructions: `【post_history_instructions】${spec.character_card_fields.all_fields.post_history_instructions}`,
-      tags: `【tags】${spec.character_card_fields.all_fields.tags}`,
-      extensions: `【extensions】${spec.character_card_fields.all_fields.extensions}`,
-      character_book: "【嵌入世界书】entries 为数组，字段映射：keys, secondary_keys, enabled, insertion_order, position。",
-      worldbook_entry: `【世界书条目】${spec.worldbook_entry.content_rule} 字段：${JSON.stringify(spec.worldbook_entry.fields, null, 2)}`,
-      macros: `【宏系统】聊天变量：${spec.macros.chat_variables.join(", ")} 全局变量：${spec.macros.global_variables.join(", ")} 作用域：${JSON.stringify(spec.macros.scopes)}`,
-      regex: `【正则】字段：${JSON.stringify(spec.regex_entry.fields)} 安全：${spec.regex_entry.safety}`,
-      preset: "【预设】Main Prompt 主控制，Post-History Instructions 输出约束。",
-      variables: "【变量 API】tavo.get/set/unset，作用域 chat/global，提示词中 {{getvar::name}}。",
-      all: "【核心规则】1. 常驻 token：description,personality,scenario,name。2. first_mes 决定风格。3. 世界书 content 独立成句。4. 宏做状态追踪。5. 正则 display 最安全。"
-    };
-    return { content: [{ type: "text", text: guide[field] || guide.all }] };
-  });
-
-  server.tool("generate_png_card", "生成角色卡 JSON 并嵌入默认 PNG，返回 Base64 数据。", {
-    character_description: z.string().describe("角色的自然语言描述。")
-  }, async ({ character_description }, extra) => {
-    const env = extra.env;
-    const spec = buildFullSpecPrompt();
-    const genPrompt = `生成一个 chara_card_v2 角色卡 JSON，无额外文字。${spec} 描述：${character_description}`;
-    let cardJson;
-    try {
-      const raw = await callAI(env, genPrompt, 4096, 0.8);
-      const jsonStr = extractJSON(raw);
-      const parsed = JSON.parse(jsonStr);
-      parsed.spec = parsed.spec || "chara_card_v2";
-      parsed.spec_version = parsed.spec_version || "2.0";
-      parsed.data = parsed.data || {};
-      parsed.data.extensions = parsed.data.extensions || {};
-      if (!Array.isArray(parsed.data.alternate_greetings)) parsed.data.alternate_greetings = [];
-      if (!Array.isArray(parsed.data.tags)) parsed.data.tags = [];
-      cardJson = JSON.stringify(parsed);
-    } catch (e) {
-      return { content: [{ type: "text", text: `JSON 生成失败：${e.message}` }] };
+  get_template: {
+    description: "获取角色卡或世界书的参考模板。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        template_name: {
+          type: "string",
+          enum: ["character-card.v2.minimal", "character-card.v2.full", "worldbook.minimal", "worldbook.advanced"]
+        }
+      },
+      required: ["template_name"]
+    },
+    handler: async (args) => {
+      const key = args.template_name.replace(/\./g, "_").replace(/-/g, "_");
+      const content = TEMPLATES[key] || "模板未找到。";
+      let fmt;
+      try { fmt = JSON.stringify(JSON.parse(content), null, 2); } catch { fmt = content; }
+      return { content: [{ type: "text", text: fmt }] };
     }
-    try {
-      const pngB64 = await embedJsonIntoDefaultPng(cardJson);
-      return { content: [
-        { type: "text", text: `✅ PNG 角色卡已生成。Base64 数据：\n\n${pngB64}` },
-        { type: "text", text: `📋 内嵌 JSON：\n${cardJson}` }
-      ]};
-    } catch (e) {
-      return { content: [{ type: "text", text: `PNG 嵌入失败：${e.message}。纯 JSON：\n${cardJson}` }] };
+  },
+
+  get_field_guide: {
+    description: "获取角色卡/世界书/宏/正则/预设字段的官方规范指南。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        field: {
+          type: "string",
+          enum: ["description", "personality", "scenario", "first_mes", "mes_example", "creator_notes",
+            "system_prompt", "post_history_instructions", "tags", "extensions", "character_book",
+            "worldbook_entry", "macros", "regex", "preset", "variables", "all"]
+        }
+      },
+      required: ["field"]
+    },
+    handler: async (args) => {
+      const spec = OFFICIAL_SPECS;
+      const guide = {
+        description: `【description - 常驻 token 区】${spec.character_card_fields.all_fields.description}`,
+        personality: `【personality】${spec.character_card_fields.all_fields.personality}`,
+        scenario: `【scenario】${spec.character_card_fields.all_fields.scenario}`,
+        first_mes: `【first_mes】${spec.character_card_fields.all_fields.first_mes}`,
+        mes_example: `【mes_example】${spec.character_card_fields.all_fields.mes_example}`,
+        creator_notes: `【creator_notes】${spec.character_card_fields.all_fields.creator_notes}`,
+        system_prompt: `【system_prompt】${spec.character_card_fields.all_fields.system_prompt}`,
+        post_history_instructions: `【post_history_instructions】${spec.character_card_fields.all_fields.post_history_instructions}`,
+        tags: `【tags】${spec.character_card_fields.all_fields.tags}`,
+        extensions: `【extensions】${spec.character_card_fields.all_fields.extensions}`,
+        character_book: "【嵌入世界书】entries 为数组，字段映射：keys, secondary_keys, enabled, insertion_order, position。",
+        worldbook_entry: `【世界书条目】${spec.worldbook_entry.content_rule} 字段：${JSON.stringify(spec.worldbook_entry.fields, null, 2)}`,
+        macros: `【宏系统】聊天变量：${spec.macros.chat_variables.join(", ")} 全局变量：${spec.macros.global_variables.join(", ")} 作用域：${JSON.stringify(spec.macros.scopes)}`,
+        regex: `【正则】字段：${JSON.stringify(spec.regex_entry.fields)} 安全：${spec.regex_entry.safety}`,
+        preset: "【预设】Main Prompt 主控制，Post-History Instructions 输出约束。",
+        variables: "【变量 API】tavo.get/set/unset，作用域 chat/global，提示词中 {{getvar::name}}。",
+        all: "【核心规则】1. 常驻 token：description,personality,scenario,name。2. first_mes 决定风格。3. 世界书 content 独立成句。4. 宏做状态追踪。5. 正则 display 最安全。"
+      };
+      return { content: [{ type: "text", text: guide[args.field] || guide.all }] };
     }
-  });
+  },
+
+  generate_png_card: {
+    description: "生成角色卡 JSON 并嵌入默认 PNG，返回 Base64 数据。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_description: {
+          type: "string",
+          description: "角色的自然语言描述。"
+        }
+      },
+      required: ["character_description"]
+    },
+    handler: async (args, env) => {
+      const { character_description } = args;
+      const spec = buildFullSpecPrompt();
+      const genPrompt = `生成一个 chara_card_v2 角色卡 JSON，无额外文字。${spec} 描述：${character_description}`;
+      let cardJson;
+      try {
+        const raw = await callAI(env, genPrompt, 4096, 0.8);
+        const jsonStr = extractJSON(raw);
+        const parsed = JSON.parse(jsonStr);
+        parsed.spec = parsed.spec || "chara_card_v2";
+        parsed.spec_version = parsed.spec_version || "2.0";
+        parsed.data = parsed.data || {};
+        parsed.data.extensions = parsed.data.extensions || {};
+        if (!Array.isArray(parsed.data.alternate_greetings)) parsed.data.alternate_greetings = [];
+        if (!Array.isArray(parsed.data.tags)) parsed.data.tags = [];
+        cardJson = JSON.stringify(parsed);
+      } catch (e) {
+        return { content: [{ type: "text", text: `JSON 生成失败：${e.message}` }] };
+      }
+      try {
+        const pngB64 = await embedJsonIntoDefaultPng(cardJson);
+        return { content: [
+          { type: "text", text: `✅ PNG 角色卡已生成。Base64 数据：\n\n${pngB64}` },
+          { type: "text", text: `📋 内嵌 JSON：\n${cardJson}` }
+        ]};
+      } catch (e) {
+        return { content: [{ type: "text", text: `PNG 嵌入失败：${e.message}。纯 JSON：\n${cardJson}` }] };
+      }
+    }
+  }
+};
+
+// ==================== MCP 协议处理 (手动实现) ====================
+const sessions = new Map();
+
+function generateSessionId() {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
-// ==================== Worker 入口 ====================
 export default {
   async fetch(request, env) {
-    const server = new McpServer({
-      name: "Tavo Studio - Full Spec Card & Worldbook Generator",
-      version: "2.1.0"
-    }, { capabilities: { tools: {} } });
+    const url = new URL(request.url);
 
-    // 劫持 tool 注册以注入 env 给处理函数
-    const originalTool = server.tool.bind(server);
-    server.tool = (name, description, schema, handler) => {
-      originalTool(name, description, schema, async (args) => {
-        return handler(args, { env });
+    // 处理 CORS 预检请求
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type'
+        }
       });
-    };
-    registerTools(server);
+    }
 
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-    });
+    // SSE 长连接
+    if (url.pathname === '/sse' && request.method === 'GET') {
+      const sessionId = generateSessionId();
+      console.log('SSE connected:', sessionId);
+      sessions.set(sessionId, { queue: [], resolver: null });
 
-    await server.connect(transport);
-    return transport.handleRequest(request);
+      const body = new ReadableStream({
+        start(controller) {
+          const session = sessions.get(sessionId);
+          const endpoint = `${url.origin}/message?sessionId=${sessionId}`;
+          // 通知客户端消息端点
+          controller.enqueue(`event: endpoint\ndata: ${endpoint}\n\n`);
+          // 之后的消息通过 resolver 推送
+          session.resolver = (msg) => {
+            controller.enqueue(`event: message\ndata: ${msg}\n\n`);
+          };
+        },
+        cancel() {
+          console.log('SSE closed:', sessionId);
+          sessions.delete(sessionId);
+        }
+      });
+
+      return new Response(body, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    // 处理 JSON-RPC 消息
+    if (url.pathname === '/message' && request.method === 'POST') {
+      const sessionId = url.searchParams.get('sessionId');
+      if (!sessionId || !sessions.has(sessionId)) {
+        return new Response(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "No active SSE session" }
+        }), { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
+
+      const session = sessions.get(sessionId);
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return new Response(JSON.stringify({
+          jsonrpc: "2.0",
+          error: { code: -32700, message: "Parse error" }
+        }), { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+      }
+
+      const { method, id, params } = body;
+
+      // 处理 tools/list
+      if (method === 'tools/list') {
+        const result = {
+          tools: Object.entries(TOOLS).map(([name, tool]) => ({
+            name,
+            description: tool.description,
+            inputSchema: tool.inputSchema
+          }))
+        };
+        const message = JSON.stringify({ jsonrpc: "2.0", id, result });
+        if (session.resolver) {
+          session.resolver(message);
+        }
+        return new Response('Accepted', { status: 202, headers: { 'Access-Control-Allow-Origin': '*' } });
+      }
+
+      // 处理 tools/call
+      if (method === 'tools/call') {
+        const toolName = params?.name;
+        const args = params?.arguments || {};
+        const tool = TOOLS[toolName];
+        let result;
+        if (!tool) {
+          result = { content: [{ type: "text", text: `工具 '${toolName}' 不存在。` }], isError: true };
+        } else {
+          try {
+            result = await tool.handler(args, env);
+          } catch (err) {
+            result = { content: [{ type: "text", text: `执行错误：${err.message}` }], isError: true };
+          }
+        }
+        const message = JSON.stringify({ jsonrpc: "2.0", id, result });
+        if (session.resolver) {
+          session.resolver(message);
+        }
+        return new Response('Accepted', { status: 202, headers: { 'Access-Control-Allow-Origin': '*' } });
+      }
+
+      // 未知方法
+      const errorMessage = JSON.stringify({
+        jsonrpc: "2.0",
+        id: id || null,
+        error: { code: -32601, message: `Method '${method}' not found` }
+      });
+      if (session.resolver) {
+        session.resolver(errorMessage);
+      }
+      return new Response('Accepted', { status: 202, headers: { 'Access-Control-Allow-Origin': '*' } });
+    }
+
+    // 其他路径返回 404
+    return new Response('Not found', { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 };
