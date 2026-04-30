@@ -1,0 +1,15 @@
+{
+  "name": "tuchuang-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "workers-mcp": "^0.0.13",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
