@@ -12,9 +12,3 @@ head_sampling_rate = 1
 
 [vars]
 AI_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct"
-
-# 添加下面三行，强制 Wrangler 使用 Node.js 兼容模式打包
-[build]
-command = ""
-[build.upload]
-format = "service-worker"
