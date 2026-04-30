@@ -1,12 +1,5 @@
 // ==================== 依赖 CDN 导入 ====================
-import { Mcp } from 'workers-mcp';
-
-// 创建 MCP 服务器实例
-const server = new Mcp({
-  name: "Tavo Studio - Card & Worldbook Generator",
-  version: "2.1.0",
-  description: "基于 Tavo/SillyTavern 完整规范生成角色卡和世界书。支持 PNG 嵌入、宏、正则、预设等知识。"
-});
+import { Mcp as McpServer } from 'workers-mcp';
 import { z } from 'zod';
 // ==================== 内嵌所有模板 ====================
 const TEMPLATES = {
