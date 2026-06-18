@@ -1,4 +1,10 @@
-// Tavo Studio MCP v6.2.0 — 完整无分段版
+// Tavo Studio MCP v6.2.1 — 完整无分段版
+// ============================================================
+// 模块说明：本文件由多个独立模块拼接而成，以下用注释标注各模块边界
+// 方便后续单独替换。
+// ============================================================
+
+// ===== MODULE: AI_CLICHE_BLACKLIST =====
 const AI_CLICHE_BLACKLIST = {
   emotion: ["不禁","情不自禁","不由自主","鬼使神差","油然而生","心中涌起","一股暖流","下意识"],
   metaphor: ["宛如","仿佛","犹如","如同","好似"],
@@ -9,6 +15,7 @@ const AI_CLICHE_BLACKLIST = {
   evasion: ["难以言喻","无法形容","说不出的"]
 };
 
+// ===== MODULE: GAMEPLAY_MODES =====
 const GAMEPLAY_MODES = [
   { id:"pure_character", name:"纯角色", desc:"人设互动/情感推进/日常对话", required:["角色卡JSON"], suggested:["世界书(如有独立世界观)","用户身份"], variables:[] },
   { id:"wuxia_growth", name:"武侠成长", desc:"江湖恩怨/武功修炼/门派关系", required:["角色卡","世界书(武功/门派/地理)","系统预设"], suggested:["变量包(等级/HP/内力/经验)","系统正则(状态栏)","NPC世界书"], variables:["level=1","hp=100","mp=50","exp=0","reputation=0"] },
@@ -21,6 +28,7 @@ const GAMEPLAY_MODES = [
   { id:"affection", name:"好感养成", desc:"好感度阶梯/事件触发/关系路线", required:["角色卡(含关系分层)","系统预设(好感规则)"], suggested:["变量包(好感度/阶段标记)","世界书(阶段行为条目)","多开场白"], variables:["favor=0","stage='陌生'","trust=0"], stages:"陌生(0-19)→认识(20-39)→熟悉(40-59)→亲近(60-79)→亲密(80-100)" }
 ];
 
+// ===== MODULE: TEMPLATES =====
 const TEMPLATES = {
   "character-card.v2.minimal": {
     spec:"chara_card_v2", spec_version:"2.0",
@@ -53,6 +61,7 @@ const TEMPLATES = {
   }
 };
 
+// ===== MODULE: OFFICIAL_DOCS =====
 const OFFICIAL_DOCS = {
   overview: { published:"2026-04-23", sinceVersion:"v0.75.0", description:"Tavo JavaScript API 面向玩家及创作者，鼓励 Vibe Coding", asyncRule:"除变量操作(tavo.get/set/unset)及input接口外所有 API 需 await", importHelper:"https://docs.tavoai.dev/static/images/tavojs-guide-0_8-zh.png", scopeRule:"仅 chat(默认) 和 global 两个 scope 生效，源码无 character scope", namespaceRule:"window.tavo(公开API) ≠ window.tav(内部通道，勿直接调用)", communicationRule:"postMessage 双向通信，默认超时60秒" },
   sandbox: {
@@ -98,12 +107,13 @@ const OFFICIAL_DOCS = {
   utils: { namespace:"tavo.utils", methods:{ toast:{ signature:"tavo.utils.toast(text)" }, openUrl:{ signature:"tavo.utils.openUrl(url)" }, export:{ signature:"tavo.utils.export(name, data)", description:"data 推荐 Base64" }, select:{ signature:"await tavo.utils.select(options, title, defaultValue)", description:"options 支持 string[] | {value,label}[] | {value,label,description?,subtitle?}[]" }, preview:{ signature:"tavo.utils.preview(src)", description:"全屏图片预览，支持 dataUrl/http(s) URL/app内相对路径" } } },
   app:{ description:"tavo.app（持续更新中）", versionCheck:"建议脚本首行做版本自检：if (await tavo.app.versionNumber() < 780) return; 防止向下执行缺失 API 导致 WebView 崩溃。" },
   stCompat:{ triggerSlash:"window.tav.compat.st.triggerSlash(command) — 触发ST风格斜杠命令，如'/send'。别名：window.triggerSlash(command)" },
+  // ===== SUBMODULE: OFFICIAL_DOCS.ejs (v6.2.1 已更新) =====
   ejs: {
     description:"EJS 模板引擎，在提示词字段中嵌入 <% %> 语法实现逻辑、变量、循环。Since v0.87.0",
     usage:"在角色卡/预设/世界书/正则等字段中使用，渲染顺序：先 EJS 后 {{}} 宏",
     syntax:{
       outputRaw:"<%- 表达式 %> 原样输出",
-      outputEscaped:"<%= 表达式 %> HTML转义输出",
+      outputEscaped:"<%= 表达式 %> HTML转义输出（注意：若聊天开启高级前端渲染，实体可能被二次渲染，核对原文请查看上下文日志）",
       logic:"<% 语句 %> 执行逻辑不输出",
       comment:"<%# 注释 %>",
       print:"print(x) 在逻辑块中输出",
@@ -113,17 +123,18 @@ const OFFICIAL_DOCS = {
     },
     variableFunctions: {
       getvar:"getvar(key[, defaultValue]) 或 getvar(key, {scope, defaults})",
-      setvar:"setvar(key, value[, {scope}]) 原样存储",
+      setvar:"setvar(key, value[, {scope}]) ⚠️ 原样存储不解析类型（如'007'保留前导零）",
       incvar:"incvar(key[, n=1, {scope}])",
       decvar:"decvar(key[, n=1, {scope}])",
       delvar:"delvar(key[, {scope}])"
     },
     lodash:"_.get/_.has/_.set/_.unset/_.cloneDeep 支持点路径与 a.b.0.c",
     builtins:"charName, userName, lastUserMessage, lastCharMessage, characterId",
-    scopeNote:"默认 chat，global 即时持久化；getvar 无 scope 时先 chat 后 global；setvar 非 global 默认 chat",
+    scopeNote:"默认 chat，global 即时持久化；getvar 无 scope 时先 chat 后 global；setvar 非 global 默认 chat；getvar 兼容 cache 同默认，message/initial 同 chat",
     errorHandling:"整字段内任一标签报错，整段原样回退不渲染",
     note:"不含 include/partial/自定义分隔符等高级特性"
   },
+  // ===== END SUBMODULE: OFFICIAL_DOCS.ejs =====
   endpoint: { platforms:"15个逻辑平台：直连6个(OpenAI/Claude/Gemini/VertexAI/DeepSeek/Grok) + 协议3个(OpenAI协议/Anthropic协议/Gemini协议) + 代理5个(OpenRouter/Volink/MantleAI/PopRouter/TinyRouter) + 元入口1个(LoadBalancer)", protocolNote:"选了某协议就必须按该协议路径/鉴权/响应格式调用，Tavo不做协议间自动翻译", modelRegistry:"193模型(openai:39/vertex:59/vertex_popular:7/doubao:28/grok:17/claude:15/gemini:13/openrouter_popular:9/deepseek:6)，仅22%含定价，仅5%含完整capabilities", capabilityBits:{ editable:["cache","code","function","image","reasoning","structure"], displayOnly:["tts","asr"], registryKeys:{ image_generation:"image", code_interpreter:"code", function_call:"function", structured_output:"structure", caching:"cache", reasoning:"reasoning" }, note:"勾选能力位只代表'尝试这样调用'，不证明上游模型真的支持。tts/asr是仅显示位，不在编辑6位内" }, warnings:["busy","empty_response","geo_restricted","invalid_secret","malformed_response","model_inactive","model_not_found","multimodal_required","network_error","no_available_endpoint","other_error","partner_high_cost_warning","prohibited_content","quota_exhausted","server_error","unknown_error","wrong_url"], vertexAI:{ regions:30, authMethods:{ express:"endpoint_edit_auth_method_vertext_express(NOTE:vertext拼写如此)", full:"endpoint_edit_auth_method_vertext_full" } }, importSources:[{ name:"chub.ai", api:"api.chub.ai/api/characters/ + api.chub.ai/api/lorebooks/download" },{ name:"janitorai.com" },{ name:"realm.risuai.net", api:"realm.risuai.net/api/v1/download/png-v3/" },{ name:"aicharactercards.com", api:"card API pngapi/v1/" },{ name:"pygmalion.chat", api:"server.pygmalion.chat/api/export/character/" },{ name:"onlycards.ai", api:"card.onlycards.ai/api/v1/cards/ + frontend t.onlycards.ai" }] },
   tts: { platforms:13, platformList:["Android系统","Google系统","Google Gemini","ElevenLabs","MiniMax","Honor","Huawei","Vivo","Xiaomi","iFlytek","iOS","Multi-System","Volink(代理)"], multiSystemEngines:["com.baidu.duersdk.opensdk","com.github.jing332.tts_server_android","com.google.android.tts","com.hihonor.aipluginengine","com.hihonor.voiceengine","com.huawei.hiai","com.iflytek.speechcloud","com.iflytek.speechsuite","com.iflytek.tts","com.vivo.aiservice","com.xiaomi.mibrain.speech"], proxies:["tavo_tts_mantleai","tavo_tts_poprouter","tavo_tts_tinyrouter","tavo_tts_volink + tavo_tts_get"], elevenLabs:{ api:"api.elevenlabs.io" }, miniMax:{ domains:["api.minimax.io","api.minimaxi.com"] }, ttsEntity:{ TtsEndpoint:"平台/密钥/语音ID/语言", TtsCharacterRef:"角色↔TTS端点关联，一个角色可绑一个端点" }, uiAssets:["bubble_icon_tts.png","icon_tts_speaker.png","tts_playing_lottie.json","icon_tts_voices_binding.png","icon_tts_voices_loading.png"], iosNote:"APK仅确认icon_tts_platform_ios_system.png被打包，无法确认iOS端运行时表现", languageIcons:["icon_tts_modle_language_chinese.png","icon_tts_modle_language_english.png"] },
   load_balancer: { entities:["LoadBalancer","LoadBalancerLog","LoadBalancerStrategy"], strategies:["round_robin(轮询)","weighted(加权)","random(随机)","lru(最近最少使用)"], uiPath:"左侧边栏→更多→设置→负载均衡器", deepLink:"tav://tavo/load_balancers/", notes:["LB在聊天中作为'虚拟模型'出现在端点列表","LB不存APIkey，复用已配置端点的密钥","不要把不同协议的端点混进同一均衡组","Tavo不做协议间自动翻译","仅有4策略，没有geo/latency/nearest路由","TTS和图片请求不走LB","所有端点不可用时报错"], configFields:["load_balancer_max_retries","load_balancer_max_log_size","load_balancer_weight","load_balancer_edit_entries","load_balancer_edit_options","load_balancer_edit_name_prefix","load_balancer_explain"], logFields:["load_balancer_log","_log_title","_log_size","_log_today_request","_log_total_request","_log_available_api","_log_none","_log_none_info"] },
@@ -131,6 +142,7 @@ const OFFICIAL_DOCS = {
   sandboxJsMethods:{ description:"sandbox.js (grep实证) 暴露的全部 window.tavo.* 方法", list:["tavo.app.version/versionNumber","tavo.character.all/create/delete/find/get/import/update","tavo.chat.current/update","tavo.input.append/clear/get/send/set","tavo.lorebook.all/create/delete/find/get/import/update","tavo.memory.current/update","tavo.message.append/count/current/delete/find/get/update","tavo.persona.all/create/delete/find/get/update(无import)","tavo.preset.all/create/delete/find/get/import/update","tavo.regex.all/create/delete/find/get/import/update","tavo.utils.export/openUrl/select/toast/preview","tavo.generate/get/set/unset/update(顶层函数)","tavo.image.generate","tavo.file.save/load/delete/exists/url"] }
 };
 
+// ===== MODULE: OFFICIAL_SPECS =====
 const OFFICIAL_SPECS = {
   character_card: { permanent_context:["name","description","personality","scenario"], fields:{ name:{ desc:"角色名。{{char}}引用。必填", token:"常驻" }, description:{ desc:"【最重要】核心身份、背景、外貌、行为边界、文风框架。用{{char}}。2-5段，≥260字", token:"常驻" }, personality:{ desc:"性格关键词摘要", token:"常驻" }, scenario:{ desc:"初始关系、地点、情境。用{{user}}。1-3句", token:"常驻" }, first_mes:{ desc:"【风格锚点】模型从此学习回复长度/文风/动作密度。用*动作*描写环境", token:"非永久" }, mes_example:{ desc:"【口吻示范器】加<START>分隔，用{{user}}:和{{char}}:标记。不塞设定", token:"非永久" }, creator_notes:{ desc:"给人看的备注。不放硬设定", token:"元数据" }, system_prompt:{ desc:"角色级主提示覆盖。需Prefer Char. Prompt。可用{{original}}插回", token:"按需" }, post_history_instructions:{ desc:"收尾约束，注入历史最末端，权重最高", token:"按需" }, alternate_greetings:{ desc:"数组，备选开场白", token:"元数据" }, tags:{ desc:"数组，如['中文','慢热']", token:"元数据" }, extensions:{ desc:"对象，至少{}。常见键：world,depth_prompt,talkativeness,fav", token:"扩展" }, character_book:{ desc:"嵌入世界书。entries为数组", token:"扩展" } }, qualityCheck:{ structural:["JSON可解析","spec=chara_card_v2+spec_version=2.0","data.extensions存在(≥{})","alternate_greetings是数组","tags是数组","character_book.entries是数组(如有)","PNG回读一致"], content:["name非空","description≥260字含身份背景外貌行为边界","personality非空","scenario非空","first_mes非空且风格一致","mes_example≥2组是口吻示范","system_prompt≤400字","post_history_instructions≤200字","宏统一","无AI废词"], living:["不是服务型NPC","有防御机制","情绪有惯性","不替{{user}}行动"] }, tagOutputFormat:"[NAME][/NAME] [DESCRIPTION][/DESCRIPTION] [PERSONALITY][/PERSONALITY] [SCENARIO][/SCENARIO] [FIRST_MES][/FIRST_MES] [MES_EXAMPLE][/MES_EXAMPLE] [SYSTEM_PROMPT][/SYSTEM_PROMPT] [POST_HISTORY_INSTRUCTIONS][/POST_HISTORY_INSTRUCTIONS]。比JSON输出更稳定" },
   macros: { identity:["{{user}}","{{char}}","{{group}}","{{groupNotMuted}}","{{charIfNotGroup}}"], card:["{{charDescription}}","{{charPersonality}}","{{scenario}}","{{persona}}","{{charPrompt}}","{{charInstruction}}","{{charJailbreak}}","{{mesExamples}}","{{mesExamplesRaw}}","{{charVersion}}","{{charCreatorNotes}}","{{charScenario}}"], message:["{{lastMessage}}","{{input}}","{{lastUserMessage}}","{{lastCharMessage}}","{{original}}"], datetime:["{{time}}","{{date}}","{{weekday}}","{{isotime}}","{{isodate}}","{{idleDuration}}","{{time::UTC+9}}"], random:["{{random::A::B::C}}","{{roll::3d6}}"], chat_variables:["{{setvar::name::value}}","{{addvar::name::value}}","{{incvar::name}}","{{decvar::name}}","{{getvar::name}}"], global_variables:["{{setglobalvar::name::value}}","{{addglobalvar::name::value}}","{{incglobalvar::name}}","{{decglobalvar::name}}","{{getglobalvar::name}}"], formatting:["{{newline}}","{{newline::N}}","{{space}}","{{space::N}}","{{trim}}","{{noop}}"], comment:"{{//注释内容}} 渲染时为空", escape:"\\{\\{char\\}\\} 避免宏执行", legacy:["<USER>","<CHAR>/<BOT>","<GROUP>/<CHARIFNOTGROUP>"], warnings:["setvar不要放在每轮都会注入的位置当初始化","addvar对数字做加法，列表追加，字符串拼接","变量支持数字/字符串/JSON列表"] },
@@ -141,6 +153,7 @@ const OFFICIAL_SPECS = {
   combos: { "角色卡+世界书+宏":"动态变量（HP、好感度）", "预设+宏":"动态提示词模板；状态写入不要放在每轮都会重置的位置", "世界书+宏":"触发条目时初始化变量，做剧情切章或地图切换", "正则+宏":"输入简写展开、输出状态栏拼接；显示-only不等于状态已持久化", "高级前端渲染+JS API":"HTML/CSS展示+在允许JS模式下的互动气泡、RPG HUD", "长记忆+世界书":"长记忆保留动态事实，世界书保留静态设定", "JS API+角色/世界书":"脚本化批量创建或修改角色卡和世界书条目", "负载均衡器+端点管理":"高可用、按权重/轮换/随机/LRU分发", "EJS+宏":"先EJS后{{}}宏，EJS输出可继续包含宏进行二次替换", "EJS+JS API":"EJS负责生成时逻辑注入，JS API负责运行时交互与状态管理" }
 };
 
+// ===== MODULE: USER_EXAMPLES_RAW =====
 const USER_EXAMPLES_RAW = {
   tavo_js_guide: {"spec":"chara_card_v3","spec_version":"3.0","data":{"avatar":"charaCard/1777315849512.png","name":"TavoJS 指南 1","description":"你是Tavo","first_mes":"「🏠 目录」","personality":"","scenario":"","mes_example":"","creator_notes":"Tavo JavaScript 社区教学卡，有任何问题欢迎社区反馈。\n\nTavo 官网: https://tavoai.dev\nDiscord: https://discord.gg/47cBNpQDFG\nReddit: https://www.reddit.com/r/TAVO_AICHAT/\n\n📥 导入此指南角色卡（推荐新手）：在 '从 URL 导入角色' 处粘贴\nhttps://docs.tavoai.dev/static/images/tavojs-guide-0_8-zh.png","system_prompt":"","post_history_instructions":"","alternate_greetings":[],"character_book":null,"tags":["Tavo"," JavaScript"," API"],"creator":"Tavo Community","character_version":"0.8","nickname":null,"creator_notes_multilingual":null,"source":null,"group_only_greetings":[],"creation_date":1773234741,"modification_date":1776884976,"extensions":{"regex_scripts":[
       {"id":"acd8afc4-c0a1-47cf-bc16-8fbfda0d2c59","scriptName":"⚠️ 版本检查","findRegex":"$","replaceString":"<div class=\"versionWarning\">\n</div>\n<script>\nasync function checkVersion(minVersion) {\n  let failed;\n  if (!tavo.app || !tavo.app.versionNumber) {\n    failed = true;\n  } else {\n    const vn = await tavo.app.versionNumber();\n    failed = vn < minVersion;\n  }\n  if (failed) {\n     setVisible('.control', 'none')\n     setVisible('.versionWarning', 'block')\n     document.querySelector('.versionWarning').innerHTML = `⚠️ 抱歉,您必须至少升级到 ${Math.floor(minVersion / 1000)}.${Math.floor((minVersion % 1000)/10)}.${minVersion % 10} 才支持此功能`\n  }\n}\nfunction setVisible(selector, display) {\n  document.querySelector(selector).style.display = display;\n}\n\ncheckVersion(780)\n</script>","trimStrings":[],"placement":[2],"disabled":false,"markdownOnly":true,"promptOnly":false,"runOnEdit":false,"substituteRegex":0,"minDepth":null,"maxDepth":null},
@@ -170,6 +183,7 @@ const USER_EXAMPLES_RAW = {
     ],"source_owner":[]}}}
 };
 
+// ===== MODULE: GUIDES =====
 const GUIDES = {
   card_creation: "【角色卡创作引导流程 · 4阶段】\n阶段一：引力核心（选择题追问到清晰）\n  - 性格张力？关系动态？氛围？玩法？\n阶段二：逐维度构建（每轮一个维度）\n  2.1 身份背景→description\n  2.2 外表视觉→description\n  2.3 性格结构(表层+深层)→personality+description\n  2.4 活人感维度(恐惧/创伤/语言习惯/隐藏面/气质矛盾，选2-3个)→description+mes_example\n  2.5 与用户关系→scenario\n  2.6 文风→first_mes+mes_example\n  2.7 世界观→世界书\n  2.8 变化弧线→宏变量+世界书阶段条目\n  2.9 玩法机制→宏+世界书+正则+预设+AR\n阶段三：一致性审查\n阶段四：交付确认（输出构思总结）\n\n## 每轮输出格式\n【第 X 轮 · 阶段名】\n引力核心：（一两句话）\n当前进度：（已确定的维度 / 总维度）\n本轮确定：（当前维度名称）→ 最终落位：（对应角色卡字段或结构）\n（简要回顾上轮结论，如有矛盾或风险在这里指出）\nA. xxx  B. xxx  C. xxx  D. xxx  E. 以上都不是 / 我自己说\n\n等用户回答后再继续下一轮。每轮只推进一个维度，不要跳步。如果用户说\"回到第X轮\"或\"我改主意了\"，直接回退到对应位置重新来。",
   character_card_fields: "【角色卡字段规范】\ndescription: 常驻核心设定，≥260字\npersonality: 性格摘要\nscenario: 当前语境\nfirst_mes: 风格锚点（比任何解释都强）\nmes_example: 口吻示范器（不是设定百科）\ncreator_notes: 元数据（不放硬设定）\nsystem_prompt: 角色级主提示（需Prefer Char. Prompt）\npost_history_instructions: 收尾约束（权重最高）\nalternate_greetings: 数组\ntags: 数组\nextensions: 对象(≥{})\ncharacter_book: entries数组\n\n## 推荐制作步骤\n1. 先写一版纯 JSON\n2. 用 jq 或 Node 解析确认结构没坏\n3. 如果有 lore：独立做 worldbook.json → 需要嵌入时转成 character_book\n4. 再写进 PNG\n5. 导入 ST 后实际开一轮新聊天，观察：\n   - 第一条是否风格正确\n   - 后续是否沿用风格\n   - 世界书触发是否正常\n\n【结构化标签输出格式】（AI生成阶段专用）\n用途：AI生成阶段用标签块输出，比JSON更适合大模型连续生成，避免括号/逗号/转义错误。\n\n可用标签：\n· [NAME][/NAME] - 角色名\n· [NICKNAME][/NICKNAME] - 昵称\n· [PERSONALITY][/PERSONALITY] - 性格关键词\n· [SCENARIO][/SCENARIO] - 初始情境\n· [DESCRIPTION][/DESCRIPTION] - 核心描述\n· [FIRST_MES][/FIRST_MES] - 开场白\n· [MES_EXAMPLE][/MES_EXAMPLE] - 对话示例\n· [SYSTEM_PROMPT][/SYSTEM_PROMPT] - 系统提示\n· [POST_HISTORY_INSTRUCTIONS][/POST_HISTORY_INSTRUCTIONS] - 收尾约束\n· [CHARACTER_BOOK][/CHARACTER_BOOK] - 嵌入世界书\n\n⚠️ 标签块仅用于生成阶段，最终交付必须转为JSON格式。\n工作流：①AI用标签块输出内容→②正则提取各标签间文本→③填入JSON模板→④校验结构→⑤嵌入PNG\n\n正则提取示例：/<DESCRIPTION>([\\s\\S]*?)<\\/DESCRIPTION>/g 捕获组$1即为description内容",
@@ -199,10 +213,13 @@ const GUIDES = {
   dom_compatibility: "【DOM兼容】支持getElementById/innerHTML/style修改/createElement等。\n不支持localStorage/eval。\n面板使用流式布局(position:relative)，配合MutationObserver自动守护。",
   tavo_quirks: "【Tavo 环境特性与关键差异（实测确认）】\n- 每条消息 <script> 独立执行，全局变量不跨消息，DOMContentLoaded 按消息独立触发\n- runOnEdit 必须为 false（⚠️ 正则创建时必须设为false，否则会在编辑时触发替换）\n- match_whole_words 为 true 时中文正常触发（⚠️ 中文环境建议设为null）\n- group 字段 UI 不可见，需通过 JSON 编辑器修改\n- timing 合并为单字段（Tavo vs ST：ST用三旧字段组合，Tavo用timing字符串）\n- script 上下文隔离，需全局锁防重复初始化（ID加后缀+DOM lock）\n- ⚠️ 不可按 SillyTavern 经验外推，一切以 Tavo 实测为准\n\n【核心踩坑警示】\n1. runOnEdit=false（固定）\n2. 变量初始化不要放在每轮注入位置\n3. script必须带<body>标签才会被沙盒识别为完整HTML\n4. display时机最安全，receive会改写历史消息\n5. 正则导入成功≠替换成功≠JS执行成功",
   card_quality_check: "【角色卡质检清单】\n\n## 结构检查（6项）\n1. JSON 可解析，spec=chara_card_v2/v3，spec_version 正确\n2. data.extensions 存在且为对象（≥{}）\n3. alternate_greetings 是数组\n4. tags 是数组\n5. character_book 如有，entries 是数组\n6. PNG 回读一致\n\n## 内容检查（11项）\n1. name 非空\n2. description ≥260字，含身份/背景/外貌/行为边界\n3. personality 非空，是关键词摘要（不是段落）\n4. scenario 非空，1-3句初始关系\n5. first_mes 非空且风格一致（这是风格锚点）\n6. mes_example ≥2组，是口吻示范（不是设定百科）\n7. system_prompt ≤400字\n8. post_history_instructions ≤200字\n9. 宏统一（{{char}}/{{user}}）\n10. 无 AI 废词\n11. 无内在矛盾\n\n## 活人感检查（4项）\n1. 非服务型NPC：有明确行为边界（绝不做什么）\n2. 有防御机制：恐惧/回避/抗拒模式\n3. 情绪有惯性：不会瞬间翻转\n4. 不替{{user}}行动\n\n## 玩法系统专项（5项）\n1. 玩法模式与资源清单匹配（角色卡+世界书+预设+变量是否齐全）\n2. 纯角色模式无残留玩法变量/正则（无HP/等级/好感等无用变量）\n3. 变量初始化在一次性触发处（非每轮注入的位置，防止重置）\n4. 系统正则配套（timing/placements正确，runOnEdit=false）\n5. 世界书条目 comment 非空 + content 独立成句",
-  ejs: "【EJS 模板指南】\nSince v0.87.0。在角色卡/预设/世界书/正则等字段中嵌入 <% %> 语法。\n\n## 语法标签\n- <%- 表达式 %> 原样输出\n- <%= 表达式 %> HTML转义输出\n- <% 语句 %> 执行逻辑不输出\n- <%# 注释 %>\n- print(x) 在逻辑块中输出\n- <%% %%> 输出字面量 <% %>\n- -%> 删除标签后紧跟的换行\n- <#escape-ejs>…</#escape-ejs> 范围内标签当字面文本\n\n## 变量函数\n- getvar(key[, defaultValue]) 或 getvar(key, {scope, defaults})\n- setvar(key, value[, {scope}])\n- incvar(key[, n=1, {scope}])\n- decvar(key[, n=1, {scope}])\n- delvar(key[, {scope}])\n\n## lodash 工具\n_.get/_.has/_.set/_.unset/_.cloneDeep 支持点路径与 a.b.0.c\n\n## 内置常量\ncharName, userName, lastUserMessage, lastCharMessage, characterId\n\n## 作用域\n默认 chat，global 即时持久化；getvar 无 scope 时先 chat 后 global；setvar 非 global 默认 chat\n\n## 错误处理\n整字段内任一标签报错，整段原样回退不渲染\n\n## 与宏的顺序\n先 EJS 后 {{}} 宏，EJS 输出可包含宏进行二次替换\n\n## 注意事项\n- 不含 include/partial/自定义分隔符等高级特性\n- 需要先在设置中开启 EJS 模板（默认开启）",
+  // ===== SUBMODULE: GUIDES.ejs (v6.2.1 已更新) =====
+  ejs: "【EJS 模板指南】\nSince v0.87.0。在角色卡/预设/世界书/正则等字段中嵌入 <% %> 语法。\n\n## 语法标签\n- <%- 表达式 %> 原样输出\n- <%= 表达式 %> HTML转义输出（注意：若开启高级前端渲染，实体可能被二次渲染，核对原文请查上下文日志）\n- <% 语句 %> 执行逻辑不输出\n- <%# 注释 %>\n- print(x) 在逻辑块中输出\n- <%% %%> 输出字面量 <% %>\n- -%> 删除标签后紧跟的换行\n- <#escape-ejs>…</#escape-ejs> 范围内标签当字面文本\n\n## 变量函数（完整参数）\n- getvar(key) → 读变量，不存在返回空串\n- getvar(key, 默认值) → 不存在时返回默认值\n- getvar(key, {scope, defaults}) → 指定作用域读取/设置默认值\n- setvar(key, value[, {scope}]) → 写变量，⚠️ 原样存储不解析类型（如 \"007\" 保留前导零）\n- incvar(key[, n=1, {scope}]) → 自增 n\n- decvar(key[, n=1, {scope}]) → 自减 n\n- delvar(key[, {scope}]) → 删除变量\n\n## 作用域规则\n- 默认 chat，global 即时持久化\n- getvar 不带 scope 时：先 chat 后 global\n- setvar 不带 scope 或非 global：统一走 chat\n\n## lodash 工具\n_.get/_.has/_.set/_.unset/_.cloneDeep 支持点路径与 a.b.0.c\n\n## 内置常量\ncharName, userName, lastUserMessage, lastCharMessage, characterId\n\n## 错误处理\n整字段内任一标签报错，整段原样回退不渲染\n\n## 与宏的顺序\n先 EJS 后 {{}} 宏，EJS 输出可包含宏进行二次替换\n\n## 注意事项\n- 不含 include/partial/自定义分隔符等高级特性\n- 需要先在设置中开启 EJS 模板（默认开启）\n- 不要把故意写错的坏标签和正常标签混在同一字段",
+  // ===== END SUBMODULE: GUIDES.ejs =====
   js_best_practices: "【JavaScript 最佳实践与设计模式】\n\n## 模式 A：按钮异步事件绑定（DOM 滚动防重绑定范式）\n- 始终检索 DOM 节点列表的最后一位，确保精确锁定当前最新生成的气泡。\n- 使用状态锁（如 data-bound）防止历史消息重渲染导致 onclick 重复挂载。\n- 异步业务必须用 try/catch 包裹，绝不允许将底层未捕获异常抛给顶层沙箱。\n\n## 模式 B：原子化改写世界书特定 Entry 逻辑\n- 先用 lorebook.find 通过名称获取摘要列表，再 get 获取完整实体。\n- 遍历 entries 匹配 name，修改后直接 update 回写。\n- 避免硬编码 ID，因为不同设备/用户间 ID 会漂移。\n\n## 模式 C：跨设备/跨会话兼容性设计原则\n- 所有底层 characterId、lorebookId、regexId 均由本地数据库动态分配，不可硬编码。\n- 必须使用 name 属性配合 find 方法动态检索实时 ID。\n\n## 模式 D：WebView 沙箱 Timer 鲁棒性隔离原则\n- 移动端 WebView 在后台或气泡滚动出屏幕时，系统 GC 可能干掉 setTimeout/setInterval 引用。\n- 放弃依赖内存中的 Timer 状态，优先使用 tavo.set 将状态翻转持久化写入会话级变量。每次触发时重新读取持久化变量。\n\n## 模式 E：闭环角色卡一键部署盒子\n- 利用 tavo.message.current() 精准获取当前消息实例。\n- 绝对定位截取法：从消息原文中提取首尾花括号定位 JSON 实体。\n- 解析后通过 tavo.character.import 或 tavo.utils.export 完成部署。"
 };
 
+// ===== MODULE: UTILITY FUNCTIONS =====
 function scanAiCliches(text, customTerms = []) {
   const found = [];
   const allTerms = [...Object.values(AI_CLICHE_BLACKLIST).flat(), ...customTerms];
@@ -322,6 +339,7 @@ function recommendGameplayMode(brief) {
   return { recommended: fallback, alternatives: scores.filter(s => s.score > 0 && s.id !== fallback.id).slice(0, 3), allScores: scores.map(s => ({ id: s.id, name: s.name, score: s.score })) };
 }
 
+// ===== MODULE: TOOLS =====
 const TOOLS = {
   get_template: {
     description: "获取角色卡或世界书的参考模板（完整 JSON）。可用：character-card.v2.minimal, character-card.v2.full, character-card.v3.minimal, character-card.v3.full, worldbook.minimal, worldbook.advanced",
@@ -523,14 +541,17 @@ const TOOLS = {
           "4. 变量与宏桥接：JS API维护状态→{{getvar}}/{{getglobalvar}}读回prompt",
           "5. 作用域仅chat和global生效，character不生效"
         ],
+        // ===== SUBWORKFLOW: EJS (v6.2.1 已更新) =====
         "EJS": [
           "1. 确认 EJS 已开启（设置→聊天→兼容性→启用 EJS 模板）",
           "2. 用 <%- 表达式 %> 输出变量，<% 语句 %> 写逻辑",
           "3. getvar/setvar/incvar/decvar 操作变量，支持点路径",
-          "4. 内置常量 charName/userName/lastUserMessage/lastCharMessage/characterId",
-          "5. 渲染顺序：先 EJS 后 {{}} 宏，EJS 输出可继续包含宏",
-          "6. 错误处理：整字段内任一标签报错，整段原样回退不渲染"
+          "4. ⚠️ setvar 原样存储，不解析类型（'007'保留前导零，数字需用 parseInt 等处理）",
+          "5. 内置常量 charName/userName/lastUserMessage/lastCharMessage/characterId",
+          "6. 渲染顺序：先 EJS 后 {{}} 宏，EJS 输出可继续包含宏",
+          "7. 错误处理：整字段内任一标签报错，整段原样回退不渲染"
         ],
+        // ===== END SUBWORKFLOW: EJS =====
         "全套": [
           "1. 确认玩法模式和配套资源清单",
           "2. 完成角色卡JSON（description/personality/scenario/first_mes/mes_example）",
@@ -727,6 +748,7 @@ const TOOLS = {
   }
 };
 
+// ===== MODULE: WORKER ENTRY =====
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -747,7 +769,7 @@ export default {
       const { method, id, params } = body || {};
 
       if (method === 'initialize') {
-        return new Response(JSON.stringify({ jsonrpc:'2.0', id, result:{ protocolVersion:'2024-11-05', capabilities:{tools:{}}, serverInfo:{name:'制卡工具 - Tavo Studio', version:'6.2.0'} } }), { headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'} });
+        return new Response(JSON.stringify({ jsonrpc:'2.0', id, result:{ protocolVersion:'2024-11-05', capabilities:{tools:{}}, serverInfo:{name:'制卡工具 - Tavo Studio', version:'6.2.1'} } }), { headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'} });
       }
 
       if (method === 'tools/list') {
@@ -774,7 +796,7 @@ export default {
     }
 
     if (url.pathname === '/' || url.pathname === '') {
-      return new Response(JSON.stringify({ name:'制卡工具 - Tavo Studio', version:'6.2.0', status:'running', tools:Object.keys(TOOLS), mcpEndpoint:`${url.origin}/mcp` }), { headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'} });
+      return new Response(JSON.stringify({ name:'制卡工具 - Tavo Studio', version:'6.2.1', status:'running', tools:Object.keys(TOOLS), mcpEndpoint:`${url.origin}/mcp` }), { headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'} });
     }
 
     return new Response('Not found', { status:404, headers:{'Access-Control-Allow-Origin':'*'} });
